@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="PYTHON_MODULE" version="4">
+  <component name="FacetManager">
+    <facet type="fusion360plugin" name="Fusion 360 Support">
+      <configuration>
+        <option name="fusionPath" value="C:\Users\dmarquina\AppData\Local\Autodesk\webdeploy\production\dabca83aceed67f5b8555a5b9697a3fc08792c77\Fusion360.exe" />
+      </configuration>
+    </facet>
+  </component>
+  <component name="NewModuleRootManager">
+    <content url="file://$MODULE_DIR$" />
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+    <orderEntry type="module-library" scope="PROVIDED">
+      <library name="Fusion 360 API" type="python">
+        <CLASSES>
+          <root url="file://$USER_HOME$/AppData/Local/Autodesk/webdeploy/production/dabca83aceed67f5b8555a5b9697a3fc08792c77/Api/Python/packages/adsk/defs" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES />
+      </library>
+    </orderEntry>
+  </component>
+  <component name="PyDocumentationSettings">
+    <option name="format" value="PLAIN" />
+    <option name="myDocStringFormat" value="Plain" />
+  </component>
+</module>
