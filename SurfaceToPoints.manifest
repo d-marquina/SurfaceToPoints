@@ -1,0 +1,13 @@
+{
+	"autodeskProduct":	"Fusion360",
+	"type":	"addin",
+	"id":	"052235e3-e9ea-44c4-80bf-83ac1867cad0",
+	"author":	"Daniel Marquina",
+	"description":	{
+		"":	"Exports a surface as coodinates in a CSV file, based on a mesh."
+	},
+	"version":	"0.5",
+	"runOnStartup":	false,
+	"supportedOS":	"windows|mac",
+	"editEnabled":	true
+}
