@@ -1,12 +1,16 @@
 import adsk.core
 import adsk.fusion
 import os
+import tkinter
+from tkinter import filedialog
 import csv
+import traceback
 from ...lib import fusion360utils as futil
 from ... import config
 
 app = adsk.core.Application.get()
 ui = app.userInterface
+tkinter.Tk().withdraw()
 
 
 # TODO *** Specify the command identity information. ***
@@ -91,21 +95,12 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     surface_input.addSelectionFilter("SurfaceBodies")
 
     # Create a Dropdown Command Input for quality level
-    # inputs.addDropDownCommandInput('quality_input', 'Mesh\' quality level')
-
-
-    # ==================================================================================================================
-    # DELETE
-
-    # Create a simple text box input.
-    inputs.addTextBoxCommandInput('text_box', 'Some Text', 'Enter some text.', 1, False)
-
-    # Create a value input field and set the default using 1 unit of the default length unit.
-    defaultLengthUnits = app.activeProduct.unitsManager.defaultLengthUnits
-    default_value = adsk.core.ValueInput.createByString('1')
-    inputs.addValueInput('value_input', 'Some Value', defaultLengthUnits, default_value)
-
-    # ==================================================================================================================
+    quality_input = inputs.addDropDownCommandInput('quality_input', 'Mesh quality level',
+                                                   adsk.core.DropDownStyles.TextListDropDownStyle)
+    quality_input.listItems.add('Low', False, '')
+    quality_input.listItems.add('Normal', False, '')
+    quality_input.listItems.add('High', False, '')
+    quality_input.listItems.add('Very High', True, '')
 
     # TODO Connect to the events that are needed by this command.
     futil.add_handler(args.command.execute, command_execute, local_handlers=local_handlers)
@@ -122,63 +117,61 @@ def command_execute(args: adsk.core.CommandEventArgs):
     futil.log(f'{CMD_NAME} Command Execute Event')
 
     # TODO ******************************** Your code here ********************************
-    # Get main objects
-    product = app.activeProduct
-    if not product:
-        ui.messageBox('No active Fusion design', 'No design')
-        return
-    design = adsk.fusion.Design.cast(product)
-    root_comp = design.rootComponent
-    b_rep_bodies = root_comp.bRepBodies
-    mesh_bodies = root_comp.meshBodies
-    debug_info = ''
+    try:
+        # Get main objects
+        product = app.activeProduct
+        if not product:
+            ui.messageBox('No active Fusion design', 'No design')
+            return
+        design = adsk.fusion.Design.cast(product)
+        root_comp = design.rootComponent
+        b_rep_bodies = root_comp.bRepBodies
+        mesh_bodies = root_comp.meshBodies
+        mesh_quality_options = [adsk.fusion.TriangleMeshQualityOptions.LowQualityTriangleMesh,
+                                adsk.fusion.TriangleMeshQualityOptions.NormalQualityTriangleMesh,
+                                adsk.fusion.TriangleMeshQualityOptions.HighQualityTriangleMesh,
+                                adsk.fusion.TriangleMeshQualityOptions.VeryHighQualityTriangleMesh]
+        debug_info = ''
 
-    # Get a reference to your command's inputs.
-    inputs = args.command.commandInputs
-    surface_input: adsk.core.SelectionCommandInput = inputs.itemById('surface_input')
-    surface: adsk.fusion.BRepBody = surface_input.selection(0).entity
+        # Get a reference to your command's inputs.
+        inputs = args.command.commandInputs
+        surface_input: adsk.core.SelectionCommandInput = inputs.itemById('surface_input')
+        surface: adsk.fusion.BRepBody = surface_input.selection(0).entity
+        quality_input: adsk.core.DropDownCommandInput = inputs.itemById('quality_input')
+        quality_level = mesh_quality_options[quality_input.selectedItem.index]
 
-    # Get control surface faces
-    faces = []
-    for i in range(surface.faces.count):
-        faces.append(surface.faces.item(i))
-    debug_info += f'This surface has: {surface.faces.count} faces.'
+        # Get control surface faces
+        faces = []
+        for i in range(surface.faces.count):
+            faces.append(surface.faces.item(i))
+        debug_info += f'The selected surface has: {surface.faces.count} faces.'
 
-    # Create Mesh
-    mesh_calc = surface.meshManager.createMeshCalculator()
-    mesh_calc.setQuality(15)
-    t_mesh = mesh_calc.calculate()
-    t_mesh_coordinates = t_mesh.nodeCoordinatesAsDouble
-    t_mesh_indices = t_mesh.nodeIndices
-    t_mesh_vector = t_mesh.normalVectorsAsDouble
-    surface_mesh = mesh_bodies.addByTriangleMeshData(t_mesh_coordinates, t_mesh_indices, t_mesh_vector, [])
+        # Create Mesh
+        mesh_calc = surface.meshManager.createMeshCalculator()
+        mesh_calc.setQuality(quality_level)
+        t_mesh = mesh_calc.calculate()
+        t_mesh_coordinates = t_mesh.nodeCoordinatesAsDouble
+        t_mesh_indices = t_mesh.nodeIndices
+        t_mesh_vector = t_mesh.normalVectorsAsDouble
+        surface_mesh = mesh_bodies.addByTriangleMeshData(t_mesh_coordinates, t_mesh_indices, t_mesh_vector, [])
+        debug_info += f'<br><br>Mesh generated with {quality_input.selectedItem.name} quality.'
 
-    # Export points in csv file
-    t_mesh_point = t_mesh.nodeCoordinates
-    """with open('D:\Proyectos\Fusion360API\SurfaceToPoints\surface_pointsV2.csv', 'w', newline='') as file:
-        writer = csv.writer(file)
+        # Export points in csv file
+        folder_path = filedialog.askdirectory()
+        t_mesh_point = t_mesh.nodeCoordinates
+        with open(folder_path + '/surface_points.csv', 'w', newline='') as file:
+            writer = csv.writer(file)
 
-        for p in t_mesh_point:
-            writer.writerow([p.x, p.y, p.z])"""
+            for p in t_mesh_point:
+                writer.writerow([p.x, p.y, p.z])
+        debug_info += f'<br><br>Exported CSV file: "{file.name}".'
 
-    # ==================================================================================================================
-    # DELETE
+        # Show Message
+        ui.messageBox(debug_info)
 
-    # Get a reference to your command's inputs.
-    inputs = args.command.commandInputs
-    text_box: adsk.core.TextBoxCommandInput = inputs.itemById('text_box')
-    value_input: adsk.core.ValueCommandInput = inputs.itemById('value_input')
-
-    # ==================================================================================================================
-
-    # Do something interesting
-    text = text_box.text
-    expression = value_input.expression
-    surf_name = surface.name
-    debug_info += f'<br>Your text: {text}<br>Your value: {expression}'
-    debug_info += f'<br>Surface name: {surf_name}'
-    debug_info += f'<br>Yeah!'
-    ui.messageBox(debug_info)
+    except:
+        if ui:
+            ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
 
 
 # This event handler is called when the command needs to compute a new preview in the graphics window.
@@ -199,21 +192,12 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
 
 
 # This event handler is called when the user interacts with any of the inputs in the dialog
-# which allows you to verify that all of the inputs are valid and enables the OK button.
+# which allows you to verify all the inputs are valid and enables the OK button.
 def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
     # General logging for debug.
     futil.log(f'{CMD_NAME} Validate Input Event')
 
     inputs = args.inputs
-
-    #===================================================================================================================
-    # VALIDATE
-    # Verify the validity of the input values. This controls if the OK button is enabled or not.
-    valueInput: adsk.core.ValueCommandInput = inputs.itemById('value_input')
-    if valueInput.value >= 0:
-        args.areInputsValid = True
-    else:
-        args.areInputsValid = False
         
 
 # This event handler is called when the command terminates.
