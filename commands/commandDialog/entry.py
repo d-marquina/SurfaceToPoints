@@ -1,8 +1,10 @@
 import adsk.core
 import adsk.fusion
 import os
+import csv
 from ...lib import fusion360utils as futil
 from ... import config
+
 app = adsk.core.Application.get()
 ui = app.userInterface
 
@@ -83,6 +85,18 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     # Add a Selection Command Input
     # Add a Dropdown Command Input
 
+    # Create a Selection Command Input for surface
+    surface_input = inputs.addSelectionInput('surface_input', 'Select surface', 'Select a surface body.')
+    surface_input.setSelectionLimits(1, 1)
+    surface_input.addSelectionFilter("SurfaceBodies")
+
+    # Create a Dropdown Command Input for quality level
+    # inputs.addDropDownCommandInput('quality_input', 'Mesh\' quality level')
+
+
+    # ==================================================================================================================
+    # DELETE
+
     # Create a simple text box input.
     inputs.addTextBoxCommandInput('text_box', 'Some Text', 'Enter some text.', 1, False)
 
@@ -90,6 +104,8 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     defaultLengthUnits = app.activeProduct.unitsManager.defaultLengthUnits
     default_value = adsk.core.ValueInput.createByString('1')
     inputs.addValueInput('value_input', 'Some Value', defaultLengthUnits, default_value)
+
+    # ==================================================================================================================
 
     # TODO Connect to the events that are needed by this command.
     futil.add_handler(args.command.execute, command_execute, local_handlers=local_handlers)
@@ -115,37 +131,54 @@ def command_execute(args: adsk.core.CommandEventArgs):
     root_comp = design.rootComponent
     b_rep_bodies = root_comp.bRepBodies
     mesh_bodies = root_comp.meshBodies
+    debug_info = ''
 
-    # Copy code
-    # Convert units to design default settings
+    # Get a reference to your command's inputs.
+    inputs = args.command.commandInputs
+    surface_input: adsk.core.SelectionCommandInput = inputs.itemById('surface_input')
+    surface: adsk.fusion.BRepBody = surface_input.selection(0).entity
+
+    # Get control surface faces
+    faces = []
+    for i in range(surface.faces.count):
+        faces.append(surface.faces.item(i))
+    debug_info += f'This surface has: {surface.faces.count} faces.'
+
+    # Create Mesh
+    mesh_calc = surface.meshManager.createMeshCalculator()
+    mesh_calc.setQuality(15)
+    t_mesh = mesh_calc.calculate()
+    t_mesh_coordinates = t_mesh.nodeCoordinatesAsDouble
+    t_mesh_indices = t_mesh.nodeIndices
+    t_mesh_vector = t_mesh.normalVectorsAsDouble
+    surface_mesh = mesh_bodies.addByTriangleMeshData(t_mesh_coordinates, t_mesh_indices, t_mesh_vector, [])
+
+    # Export points in csv file
+    t_mesh_point = t_mesh.nodeCoordinates
+    """with open('D:\Proyectos\Fusion360API\SurfaceToPoints\surface_pointsV2.csv', 'w', newline='') as file:
+        writer = csv.writer(file)
+
+        for p in t_mesh_point:
+            writer.writerow([p.x, p.y, p.z])"""
+
+    # ==================================================================================================================
+    # DELETE
 
     # Get a reference to your command's inputs.
     inputs = args.command.commandInputs
     text_box: adsk.core.TextBoxCommandInput = inputs.itemById('text_box')
     value_input: adsk.core.ValueCommandInput = inputs.itemById('value_input')
 
-    # Create a parameter
-    par_name = 'Diam'
-    par_val = adsk.core.ValueInput.createByReal(value_input.value)
-    par_units = app.activeProduct.unitsManager.defaultLengthUnits
-    par_comment = 'Something!'
-    user_par = design.userParameters.add(par_name, par_val, par_units, par_comment)
-
-    # Draw a circle
-    sketches = root_comp.sketches
-    my_sketch = sketches.add(root_comp.xYConstructionPlane)
-    my_circle = my_sketch.sketchCurves.sketchCircles.addByCenterRadius(my_sketch.originPoint, user_par.value*0.5)
-
-    # Add Dimension
-    my_circle_rad = my_sketch.sketchDimensions.addRadialDimension(my_circle, adsk.core.Point3D.create(user_par.value*0.6, 0, 0))
-    my_circle_rad.parameter.expression = user_par.name
+    # ==================================================================================================================
 
     # Do something interesting
     text = text_box.text
     expression = value_input.expression
-    msg = f'Your text: {text}<br>Your value: {expression}'
-    msg += '\n\n Yeah!'
-    ui.messageBox(msg)
+    surf_name = surface.name
+    debug_info += f'<br>Your text: {text}<br>Your value: {expression}'
+    debug_info += f'<br>Surface name: {surf_name}'
+    debug_info += f'<br>Yeah!'
+    ui.messageBox(debug_info)
 
 
 # This event handler is called when the command needs to compute a new preview in the graphics window.
@@ -172,7 +205,9 @@ def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
     futil.log(f'{CMD_NAME} Validate Input Event')
 
     inputs = args.inputs
-    
+
+    #===================================================================================================================
+    # VALIDATE
     # Verify the validity of the input values. This controls if the OK button is enabled or not.
     valueInput: adsk.core.ValueCommandInput = inputs.itemById('value_input')
     if valueInput.value >= 0:
