@@ -14,9 +14,9 @@ tkinter.Tk().withdraw()
 
 
 # TODO *** Specify the command identity information. ***
-CMD_ID = f'{config.COMPANY_NAME}_{config.ADDIN_NAME}_cmdDialog'
-CMD_NAME = 'Surface to Points'
-CMD_Description = 'Exports a surface as coodinates in a CSV file, based on a mesh.'
+CMD_ID = f'{config.COMPANY_NAME}_{config.ADDIN_NAME}_csvToPoints'
+CMD_NAME = 'CSV to Points'
+CMD_Description = 'Imports points from a CSV file.'
 
 # Specify that the command will be promoted to the panel.
 IS_PROMOTED = True
@@ -85,10 +85,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     # https://help.autodesk.com/view/fusion360/ENU/?contextId=CommandInputs
     inputs = args.command.commandInputs
 
-    # TODO Define the dialog for your command by adding different inputs to the command.
-    # Add a Selection Command Input
-    # Add a Dropdown Command Input
-
+    """# TODO Define the dialog for your command by adding different inputs to the command.
     # Create a Selection Command Input for surface
     surface_input = inputs.addSelectionInput('surface_input', 'Select surface', 'Select a surface body.')
     surface_input.setSelectionLimits(1, 1)
@@ -101,6 +98,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     quality_input.listItems.add('Normal', False, '')
     quality_input.listItems.add('High', False, '')
     quality_input.listItems.add('Very High', True, '')
+    """
 
     # TODO Connect to the events that are needed by this command.
     futil.add_handler(args.command.execute, command_execute, local_handlers=local_handlers)
@@ -116,7 +114,6 @@ def command_execute(args: adsk.core.CommandEventArgs):
     # General logging for debug.
     futil.log(f'{CMD_NAME} Command Execute Event')
 
-    # TODO ******************************** Your code here ********************************
     try:
         # Get main objects
         product = app.activeProduct
@@ -124,49 +121,57 @@ def command_execute(args: adsk.core.CommandEventArgs):
             ui.messageBox('No active Fusion design', 'No design')
             return
         design = adsk.fusion.Design.cast(product)
+        units_manager = design.unitsManager
         root_comp = design.rootComponent
-        b_rep_bodies = root_comp.bRepBodies
-        mesh_bodies = root_comp.meshBodies
-        mesh_quality_options = [adsk.fusion.TriangleMeshQualityOptions.LowQualityTriangleMesh,
-                                adsk.fusion.TriangleMeshQualityOptions.NormalQualityTriangleMesh,
-                                adsk.fusion.TriangleMeshQualityOptions.HighQualityTriangleMesh,
-                                adsk.fusion.TriangleMeshQualityOptions.VeryHighQualityTriangleMesh]
+        sketches = root_comp.sketches
+        default_length_units = units_manager.defaultLengthUnits
         debug_info = ''
 
-        # Get a reference to your command's inputs.
-        inputs = args.command.commandInputs
-        surface_input: adsk.core.SelectionCommandInput = inputs.itemById('surface_input')
-        surface: adsk.fusion.BRepBody = surface_input.selection(0).entity
-        quality_input: adsk.core.DropDownCommandInput = inputs.itemById('quality_input')
-        quality_level = mesh_quality_options[quality_input.selectedItem.index]
+        # Get CSV file
+        csv_filename = filedialog.askopenfilename()
+        debug_info += f'CSV file name: {csv_filename}.'
 
-        # Get control surface faces
-        faces = []
-        for i in range(surface.faces.count):
-            faces.append(surface.faces.item(i))
-        debug_info += f'The selected surface has: {surface.faces.count} faces.'
+        # Get CSV data
+        csv_data = []
+        row_count = 0
+        with open(csv_filename) as csv_file:
+            csv_reader = csv.reader(csv_file, delimiter=',')
+            for row in csv_reader:
+                point_data = [row[0], row[1], row[2]]
+                csv_data.append(point_data)
+                row_count += 1
+        debug_info += f'<br>Number of points: {row_count}.'
 
-        # Create Mesh
-        mesh_calc = surface.meshManager.createMeshCalculator()
-        mesh_calc.setQuality(quality_level)
-        t_mesh = mesh_calc.calculate()
-        t_mesh_coordinates = t_mesh.nodeCoordinatesAsDouble
-        t_mesh_indices = t_mesh.nodeIndices
-        t_mesh_vector = t_mesh.normalVectorsAsDouble
-        surface_mesh = mesh_bodies.addByTriangleMeshData(t_mesh_coordinates, t_mesh_indices, t_mesh_vector, [])
-        debug_info += f'<br><br>Mesh generated with {quality_input.selectedItem.name} quality.'
+        # Create sketches
+        p_x_s = 100  # points per sketch
+        n_sketches = row_count // 100
+        rem_points = row_count % 100
+        if rem_points >= 2:
+            rem_sketch = 1
+        else:
+            rem_sketch = 0
+        p_idx = 0  # points index
+        debug_info += f'<br>Number of Sketches: {n_sketches + rem_sketch}'
+        debug_info += f'<br>Remainder points: {rem_points}'
+        for n_sketch in range(n_sketches + rem_sketch):
+            csv_sketch = sketches.add(root_comp.xYConstructionPlane)
+            if n_sketch is n_sketches:
+                n_points = rem_points - 1
+            else:
+                n_points = p_x_s - 1
+            for i in range(n_points):
+                min_point_c = []
+                max_point_c = []
+                for a in range(3):
+                    min_point_c.append(units_manager.convert(float(csv_data[i+p_idx][a]), default_length_units, 'cm'))
+                for b in range(3):
+                    max_point_c.append(units_manager.convert(float(csv_data[i+p_idx+1][b]), default_length_units, 'cm'))
+                min_point = adsk.core.Point3D.create(min_point_c[0], min_point_c[1], min_point_c[2]/10)
+                max_point = adsk.core.Point3D.create(max_point_c[0], max_point_c[1], max_point_c[2]/10)
+                csv_sketch.sketchCurves.sketchLines.addByTwoPoints(min_point, max_point)
+            p_idx += p_x_s
 
-        # Export points in csv file
-        folder_path = filedialog.askdirectory()
-        t_mesh_point = t_mesh.nodeCoordinates
-        with open(folder_path + '/surface_points.csv', 'w', newline='') as file:
-            writer = csv.writer(file)
-
-            for p in t_mesh_point:
-                writer.writerow([p.x, p.y, p.z])
-        debug_info += f'<br><br>Exported CSV file: "{file.name}".'
-
-        # Show Message
+        # Show Debug Info
         ui.messageBox(debug_info)
 
     except:
