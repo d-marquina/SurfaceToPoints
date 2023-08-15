@@ -85,21 +85,6 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     # https://help.autodesk.com/view/fusion360/ENU/?contextId=CommandInputs
     inputs = args.command.commandInputs
 
-    """# TODO Define the dialog for your command by adding different inputs to the command.
-    # Create a Selection Command Input for surface
-    surface_input = inputs.addSelectionInput('surface_input', 'Select surface', 'Select a surface body.')
-    surface_input.setSelectionLimits(1, 1)
-    surface_input.addSelectionFilter("SurfaceBodies")
-
-    # Create a Dropdown Command Input for quality level
-    quality_input = inputs.addDropDownCommandInput('quality_input', 'Mesh quality level',
-                                                   adsk.core.DropDownStyles.TextListDropDownStyle)
-    quality_input.listItems.add('Low', False, '')
-    quality_input.listItems.add('Normal', False, '')
-    quality_input.listItems.add('High', False, '')
-    quality_input.listItems.add('Very High', True, '')
-    """
-
     # TODO Connect to the events that are needed by this command.
     futil.add_handler(args.command.execute, command_execute, local_handlers=local_handlers)
     futil.add_handler(args.command.inputChanged, command_input_changed, local_handlers=local_handlers)
@@ -114,6 +99,7 @@ def command_execute(args: adsk.core.CommandEventArgs):
     # General logging for debug.
     futil.log(f'{CMD_NAME} Command Execute Event')
 
+    # TODO ******************************** Your code here ********************************
     try:
         # Get main objects
         product = app.activeProduct
@@ -166,8 +152,8 @@ def command_execute(args: adsk.core.CommandEventArgs):
                     min_point_c.append(units_manager.convert(float(csv_data[i+p_idx][a]), default_length_units, 'cm'))
                 for b in range(3):
                     max_point_c.append(units_manager.convert(float(csv_data[i+p_idx+1][b]), default_length_units, 'cm'))
-                min_point = adsk.core.Point3D.create(min_point_c[0], min_point_c[1], min_point_c[2]/10)
-                max_point = adsk.core.Point3D.create(max_point_c[0], max_point_c[1], max_point_c[2]/10)
+                min_point = adsk.core.Point3D.create(min_point_c[0], min_point_c[1], min_point_c[2])
+                max_point = adsk.core.Point3D.create(max_point_c[0], max_point_c[1], max_point_c[2])
                 csv_sketch.sketchCurves.sketchLines.addByTwoPoints(min_point, max_point)
             p_idx += p_x_s
 
